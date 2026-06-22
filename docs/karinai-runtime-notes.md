@@ -4,6 +4,13 @@ KarinAI uses Hermes Agent as the per-user agent runtime foundation.
 
 This document captures KarinAI-specific runtime assumptions so product changes stay visible while the fork continues to track upstream Hermes.
 
+## Canonical architecture
+
+The canonical KarinAI per-user container runtime spec lives in the backend repo:
+`karinai-backend/docs/architecture/per-user-container-runtime.md`.
+
+That backend-owned document defines the control-plane contract, runtime-manager responsibilities, active-turn locking, snapshot/restore model, cron wakeups, file/code execution policy, and security guardrails. This agent repo should keep only runtime-local implementation notes here and document upstream Hermes core patches in `docs/karinai-patches.md`.
+
 ## Intended boundaries
 
 - `karinai-backend` owns product state, public APIs, auth, billing/usage metadata, schedules, run records, and workspace metadata.
