@@ -1101,6 +1101,12 @@ class APIServerAdapter(BasePlatformAdapter):
 
         user_config = _load_gateway_config()
         enabled_toolsets = sorted(_get_platform_tools(user_config, "api_server"))
+        disabled_toolsets: list[str] = []
+        if os.getenv("KARINAI_MANAGED_RUNTIME", "").lower() in {"true", "1", "yes", "on"}:
+            from karinai.runtime.managed import load_managed_runtime_config, managed_agent_toolsets
+
+            managed_cfg = load_managed_runtime_config()
+            enabled_toolsets, disabled_toolsets = managed_agent_toolsets(managed_cfg)
 
         max_iterations = _current_max_iterations()
 
@@ -1116,6 +1122,7 @@ class APIServerAdapter(BasePlatformAdapter):
             verbose_logging=False,
             ephemeral_system_prompt=ephemeral_system_prompt or None,
             enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
             session_id=session_id,
             platform="api_server",
             stream_delta_callback=stream_delta_callback,

@@ -11,7 +11,7 @@ Current design docs:
 - `docs/karinai-prompt-branding.md`
 - `docs/karinai-patches.md`
 
-Expected implementation shape:
+Implementation shape:
 
 ```text
 karinai/
@@ -19,7 +19,7 @@ karinai/
   prompts/      # product-facing prompt templates
   config/       # beta tool policy and managed runtime examples
   scripts/      # prompt/branding audit and rendering helpers
-  tools/        # backend-mediated capabilities such as schedule intent
+  tools/        # backend-mediated capabilities such as schedule intent (future)
 ```
 
 Product-facing runtime identity should be KarinAI agent. Upstream Hermes should remain the engine/base and be referenced where technically useful, but KarinAI prompt/branding should be template/config driven rather than hardcoded directly into upstream files.

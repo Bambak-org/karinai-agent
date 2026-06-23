@@ -1,0 +1,52 @@
+policy_mode: beta
+summary: >
+  Initial KarinAI managed-runtime policy. The agent is useful inside the
+  isolated workspace container, while durable scheduling, plugin lifecycle,
+  secrets, host/container control, and external side effects remain backend-
+  mediated.
+
+enabled_toolsets:
+  - file
+  - terminal
+  - code_execution
+  - web
+  - vision
+  - todo
+
+disabled_toolsets:
+  - cronjob
+  - skills
+  - memory
+  - session_search
+  - delegation
+  - image_gen
+  - video
+  - video_gen
+  - tts
+  - homeassistant
+  - computer_use
+  - kanban
+  - discord
+  - discord_admin
+  - feishu_doc
+  - feishu_drive
+  - spotify
+  - x_search
+  - yuanbao
+  - moa
+
+backend_owned_features:
+  - schedules_and_cron
+  - plugin_installation
+  - provider_credentials
+  - cloud_credentials
+  - github_or_saas_credentials
+  - container_lifecycle
+  - workspace_locks
+  - product_run_records
+
+side_effects_requiring_backend_or_user_approval:
+  - git_push
+  - third_party_api_mutations
+  - credentialed_integrations
+  - long_running_background_jobs

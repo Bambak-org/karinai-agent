@@ -61,6 +61,21 @@ def _ra():
     return run_agent
 
 
+def _karinai_managed_runtime_prompt() -> Optional[str]:
+    """Return the KarinAI managed-runtime prompt when that mode is active.
+
+    Import lazily so upstream Hermes behavior is unchanged unless the
+    KarinAI-managed container env explicitly opts in.
+    """
+    try:
+        from karinai.runtime.managed import is_managed_runtime, render_managed_system_prompt
+    except ImportError:
+        return None
+    if not is_managed_runtime():
+        return None
+    return render_managed_system_prompt()
+
+
 def _resolve_platform_hint(agent: Any, platform_key: str, default_hint: str) -> str:
     """Apply a per-platform prompt-hint override to the default hint.
 
@@ -147,22 +162,28 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # ── Stable tier ────────────────────────────────────────────────
     stable_parts: List[str] = []
 
-    # Try SOUL.md as primary identity unless the caller explicitly skipped it.
-    # Some execution modes (cron) still want HERMES_HOME persona while keeping
-    # cwd project instructions disabled.
+    # KarinAI managed runtime owns product-facing identity/policy and must not
+    # allow user-editable SOUL.md content to replace the platform prompt.
+    _karinai_managed_prompt = _karinai_managed_runtime_prompt()
     _soul_loaded = False
-    if agent.load_soul_identity or not agent.skip_context_files:
-        _soul_content = _r.load_soul_md(_ctx_len)
-        if _soul_content:
-            stable_parts.append(_soul_content)
-            _soul_loaded = True
+    if _karinai_managed_prompt:
+        stable_parts.append(_karinai_managed_prompt)
+    else:
+        # Try SOUL.md as primary identity unless the caller explicitly skipped it.
+        # Some execution modes (cron) still want HERMES_HOME persona while keeping
+        # cwd project instructions disabled.
+        if agent.load_soul_identity or not agent.skip_context_files:
+            _soul_content = _r.load_soul_md(_ctx_len)
+            if _soul_content:
+                stable_parts.append(_soul_content)
+                _soul_loaded = True
 
-    if not _soul_loaded:
-        # Fallback to hardcoded identity
-        stable_parts.append(DEFAULT_AGENT_IDENTITY)
+        if not _soul_loaded:
+            # Fallback to hardcoded identity
+            stable_parts.append(DEFAULT_AGENT_IDENTITY)
 
-    # Pointer to the hermes-agent skill + docs for user questions about Hermes itself.
-    stable_parts.append(HERMES_AGENT_HELP_GUIDANCE)
+        # Pointer to the hermes-agent skill + docs for user questions about Hermes itself.
+        stable_parts.append(HERMES_AGENT_HELP_GUIDANCE)
 
     # Universal task-completion / no-fabrication guidance.  Applied to ALL
     # models regardless of tool_use_enforcement gating — the failure modes
@@ -354,32 +375,36 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # mid-session, so this doesn't break the prompt cache.
     # See file_safety._resolve_active_profile_name + classify_cross_profile_target
     # for the matching tool-side guard.
-    try:
-        from agent.file_safety import _resolve_active_profile_name
-        active_profile = _resolve_active_profile_name()
-    except Exception:
-        active_profile = "default"
-    if active_profile == "default":
-        stable_parts.append(
-            "Active Hermes profile: default. Other profiles (if any) live "
-            "under ~/.hermes/profiles/<name>/. Each profile has its own "
-            "skills/, plugins/, cron/, and memories/ that affect a different "
-            "session than this one. Do not modify another profile's "
-            "skills/plugins/cron/memories unless the user explicitly directs "
-            "you to."
-        )
-    else:
-        stable_parts.append(
-            f"Active Hermes profile: {active_profile}. This session reads "
-            f"and writes ~/.hermes/profiles/{active_profile}/. The default "
-            f"profile's data lives at ~/.hermes/skills/, ~/.hermes/plugins/, "
-            f"~/.hermes/cron/, ~/.hermes/memories/ — those belong to a "
-            f"different session run from a different shell. Do NOT modify "
-            f"another profile's skills/plugins/cron/memories unless the user "
-            f"explicitly directs you to. The cross-profile write guard will "
-            f"refuse such writes by default; pass cross_profile=True only "
-            f"after explicit direction."
-        )
+    # In KarinAI managed runtime, upstream profile paths are implementation
+    # details and should not leak into the product-facing prompt. The managed
+    # prompt already names the trusted workspace/runtime-state directories.
+    if not _karinai_managed_prompt:
+        try:
+            from agent.file_safety import _resolve_active_profile_name
+            active_profile = _resolve_active_profile_name()
+        except Exception:
+            active_profile = "default"
+        if active_profile == "default":
+            stable_parts.append(
+                "Active Hermes profile: default. Other profiles (if any) live "
+                "under ~/.hermes/profiles/<name>/. Each profile has its own "
+                "skills/, plugins/, cron/, and memories/ that affect a different "
+                "session than this one. Do not modify another profile's "
+                "skills/plugins/cron/memories unless the user explicitly directs "
+                "you to."
+            )
+        else:
+            stable_parts.append(
+                f"Active Hermes profile: {active_profile}. This session reads "
+                f"and writes ~/.hermes/profiles/{active_profile}/. The default "
+                f"profile's data lives at ~/.hermes/skills/, ~/.hermes/plugins/, "
+                f"~/.hermes/cron/, ~/.hermes/memories/ — those belong to a "
+                f"different session run from a different shell. Do NOT modify "
+                f"another profile's skills/plugins/cron/memories unless the user "
+                f"explicitly directs you to. The cross-profile write guard will "
+                f"refuse such writes by default; pass cross_profile=True only "
+                f"after explicit direction."
+            )
 
     platform_key = (agent.platform or "").lower().strip()
     # Resolve the built-in/plugin default hint for this platform, then apply
