@@ -60,6 +60,17 @@ Behavior:
 - In managed mode, use `karinai.runtime.managed_agent_toolsets()` for `AIAgent.enabled_toolsets` and `AIAgent.disabled_toolsets`.
 - Outside managed mode, keep the existing `platform_toolsets.api_server`/`hermes-api-server` resolution.
 
+### `agent/chat_completion_helpers.py`
+
+Status: temporary/product-specific bridge until upstream has a generic way for managed custom providers to declare Responses backend variants.
+
+Reason: KarinAI managed containers call the trusted KarinAI model gateway, not `chatgpt.com` directly. When that gateway is backed by OpenAI Codex, the agent still needs Codex Responses request-shaping behavior while keeping Codex credentials outside the user container.
+
+Behavior:
+
+- In managed mode, if `KARINAI_MODEL_GATEWAY_API_MODE=codex_responses` and `KARINAI_MODEL_GATEWAY_BACKEND_PROVIDER=openai-codex`, classify the custom gateway as a Codex backend for Responses payload construction.
+- Outside that exact managed gateway configuration, keep upstream provider/base-url detection unchanged.
+
 ### `docker/stage2-hook.sh`
 
 Status: permanent product-specific Docker bootstrap behavior unless upstream later exposes a generic managed-container bootstrap hook.

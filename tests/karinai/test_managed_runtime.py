@@ -89,6 +89,18 @@ def test_managed_config_requires_runtime_token_when_model_gateway_is_configured(
         )
 
 
+def test_managed_config_rejects_invalid_model_gateway_api_mode():
+    with pytest.raises(ManagedRuntimeConfigError, match="KARINAI_MODEL_GATEWAY_API_MODE"):
+        ManagedRuntimeConfig.from_env(
+            managed_env(
+                KARINAI_MODEL_GATEWAY_URL="http://model-gateway.internal/v1",
+                KARINAI_MODEL_GATEWAY_MODEL="gpt-5.4",
+                KARINAI_MODEL_GATEWAY_API_MODE="anthropic_messages",
+                KARINAI_RUNTIME_TOKEN="scoped-token",
+            )
+        )
+
+
 def test_managed_config_rejects_local_cron_plugin_install_and_dashboard():
     with pytest.raises(ManagedRuntimeConfigError, match="LOCAL_CRON"):
         ManagedRuntimeConfig.from_env(managed_env(KARINAI_LOCAL_CRON_ENABLED="true"))
@@ -114,6 +126,7 @@ def test_managed_gateway_env_scopes_runtime_state_and_workspace_writes():
     assert gateway_env["TERMINAL_CWD"] == "/workspace"
     assert gateway_env["HERMES_WRITE_SAFE_ROOT"] == "/workspace"
     assert gateway_env["HERMES_DASHBOARD"] == "false"
+    assert gateway_env["KARINAI_MODEL_GATEWAY_API_MODE"] == "chat_completions"
 
 
 def test_prepare_managed_runtime_filesystem_creates_workspace_state_and_home(tmp_path):
@@ -160,6 +173,32 @@ def test_write_managed_model_gateway_config_uses_key_env_not_raw_token(tmp_path)
     assert provider["api"] == "http://model-gateway.internal/v1"
     assert provider["key_env"] == "KARINAI_RUNTIME_TOKEN"
     assert provider["default_model"] == "karinai/test-model"
+    assert provider["transport"] == "chat_completions"
+    assert "scoped-runtime-token" not in config_path.read_text(encoding="utf-8")
+
+
+def test_write_managed_model_gateway_config_can_use_codex_responses(tmp_path):
+    yaml = pytest.importorskip("yaml")
+    workspace = tmp_path / "workspace"
+    state = tmp_path / "state"
+    cfg = ManagedRuntimeConfig.from_env(
+        managed_env(
+            KARINAI_WORKSPACE_DIR=str(workspace),
+            KARINAI_RUNTIME_STATE_DIR=str(state),
+            KARINAI_MODEL_GATEWAY_URL="http://model-gateway.internal/v1",
+            KARINAI_MODEL_GATEWAY_MODEL="gpt-5.4",
+            KARINAI_MODEL_GATEWAY_API_MODE="codex_responses",
+            KARINAI_MODEL_GATEWAY_BACKEND_PROVIDER="openai-codex",
+            KARINAI_RUNTIME_TOKEN="scoped-runtime-token",
+        )
+    )
+    prepare_managed_runtime_filesystem(cfg)
+    config_path = write_managed_model_gateway_config(cfg)
+    assert config_path is not None
+
+    data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    assert data["model"]["api_mode"] == "codex_responses"
+    assert data["providers"]["karinai-model-gateway"]["transport"] == "codex_responses"
     assert "scoped-runtime-token" not in config_path.read_text(encoding="utf-8")
 
 

@@ -74,6 +74,8 @@ class ManagedRuntimeConfig:
     policy_mode: str = "beta"
     model_gateway_url: str = ""
     model_gateway_model: str = "karinai/default"
+    model_gateway_api_mode: str = "chat_completions"
+    model_gateway_backend_provider: str = ""
     tool_gateway_url: str = ""
     runtime_token: str = field(default="", repr=False)
     enabled_toolsets: tuple[str, ...] = BETA_ENABLED_TOOLSETS
@@ -119,6 +121,11 @@ class ManagedRuntimeConfig:
             model_gateway_url=_clean(source.get("KARINAI_MODEL_GATEWAY_URL")),
             model_gateway_model=_clean(source.get("KARINAI_MODEL_GATEWAY_MODEL"))
             or "karinai/default",
+            model_gateway_api_mode=_clean(source.get("KARINAI_MODEL_GATEWAY_API_MODE"))
+            or "chat_completions",
+            model_gateway_backend_provider=_clean(
+                source.get("KARINAI_MODEL_GATEWAY_BACKEND_PROVIDER")
+            ),
             tool_gateway_url=_clean(source.get("KARINAI_TOOL_GATEWAY_URL")),
             runtime_token=_clean(source.get("KARINAI_RUNTIME_TOKEN")),
             enabled_toolsets=parse_csv(source.get("KARINAI_ENABLED_TOOLSETS"))
@@ -165,6 +172,10 @@ class ManagedRuntimeConfig:
                 errors.append("KARINAI_MODEL_GATEWAY_URL must be an absolute HTTP(S) URL")
             _require_non_empty("KARINAI_MODEL_GATEWAY_MODEL", self.model_gateway_model, errors)
             _require_non_empty("KARINAI_RUNTIME_TOKEN", self.runtime_token, errors)
+            if self.model_gateway_api_mode not in {"chat_completions", "codex_responses"}:
+                errors.append(
+                    "KARINAI_MODEL_GATEWAY_API_MODE must be chat_completions or codex_responses"
+                )
         try:
             validate_beta_tool_policy(self.enabled_toolsets, self.disabled_toolsets)
         except ValueError as exc:
@@ -196,6 +207,7 @@ class ManagedRuntimeConfig:
             "disabled_toolsets": ", ".join(self.disabled_toolsets),
             "model_gateway_configured": "true" if self.model_gateway_url else "false",
             "model_gateway_model": self.model_gateway_model,
+            "model_gateway_api_mode": self.model_gateway_api_mode,
             "tool_gateway_configured": "true" if self.tool_gateway_url else "false",
         }
 
@@ -211,6 +223,8 @@ class ManagedRuntimeConfig:
             "HERMES_WRITE_SAFE_ROOT": self.workspace_dir,
             "HERMES_DASHBOARD": "false",
             "TERMINAL_CWD": self.workspace_dir,
+            "KARINAI_MODEL_GATEWAY_API_MODE": self.model_gateway_api_mode,
+            "KARINAI_MODEL_GATEWAY_BACKEND_PROVIDER": self.model_gateway_backend_provider,
         }
 
 

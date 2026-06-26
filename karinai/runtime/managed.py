@@ -109,7 +109,7 @@ def write_managed_model_gateway_config(
             "default": cfg.model_gateway_model,
             "provider": "custom:karinai-model-gateway",
             "base_url": base_url,
-            "api_mode": "chat_completions",
+            "api_mode": cfg.model_gateway_api_mode,
         }
     )
     data["model"] = model_cfg
@@ -121,7 +121,7 @@ def write_managed_model_gateway_config(
         "api": base_url,
         "key_env": "KARINAI_RUNTIME_TOKEN",
         "default_model": cfg.model_gateway_model,
-        "transport": "chat_completions",
+        "transport": cfg.model_gateway_api_mode,
     }
     data["providers"] = providers
 
