@@ -62,6 +62,16 @@ _SESSION_ID: ContextVar = ContextVar("HERMES_SESSION_ID", default=_UNSET)
 # private-chat topic (those lanes route only with thread id + reply anchor).
 _SESSION_MESSAGE_ID: ContextVar = ContextVar("HERMES_SESSION_MESSAGE_ID", default=_UNSET)
 
+# Backend-assigned PRODUCT run id for this turn — the value of the
+# ``X-KarinAI-Run-Id`` HTTP header the KarinAI backend sends to the api_server
+# on POST /v1/runs. This is NOT the agent's own internally-minted run id
+# (``run_<uuid>``); it is the backend's run id, and its post-run sweep collects
+# durable artifacts from ``<workspace>/outputs/<product_run_id>/``. The
+# ``register_artifact`` tool reads this to stage deliverables under that exact
+# directory. Default ``_UNSET`` => empty for CLI/cron/dev, which the tool
+# treats as "no managed run" and degrades gracefully.
+_SESSION_PRODUCT_RUN_ID: ContextVar = ContextVar("HERMES_PRODUCT_RUN_ID", default=_UNSET)
+
 # Whether the current session's delivery channel can route an ASYNC completion
 # back to the agent AFTER the current turn ends (i.e. wake a fresh turn).
 #
@@ -100,6 +110,7 @@ _VAR_MAP = {
     "HERMES_SESSION_KEY": _SESSION_KEY,
     "HERMES_SESSION_ID": _SESSION_ID,
     "HERMES_SESSION_MESSAGE_ID": _SESSION_MESSAGE_ID,
+    "HERMES_PRODUCT_RUN_ID": _SESSION_PRODUCT_RUN_ID,
     "HERMES_CRON_AUTO_DELIVER_PLATFORM": _CRON_AUTO_DELIVER_PLATFORM,
     "HERMES_CRON_AUTO_DELIVER_CHAT_ID": _CRON_AUTO_DELIVER_CHAT_ID,
     "HERMES_CRON_AUTO_DELIVER_THREAD_ID": _CRON_AUTO_DELIVER_THREAD_ID,
@@ -132,6 +143,7 @@ def set_session_vars(
     session_key: str = "",
     session_id: str = "",
     message_id: str = "",
+    product_run_id: str = "",
     cwd: str = "",
     async_delivery: bool = True,
 ) -> list:
@@ -161,6 +173,7 @@ def set_session_vars(
         _SESSION_KEY.set(session_key),
         _SESSION_ID.set(session_id),
         _SESSION_MESSAGE_ID.set(message_id),
+        _SESSION_PRODUCT_RUN_ID.set(product_run_id),
         _SESSION_ASYNC_DELIVERY.set(bool(async_delivery)),
     ]
     try:
@@ -194,6 +207,7 @@ def clear_session_vars(tokens: list) -> None:
         _SESSION_KEY,
         _SESSION_ID,
         _SESSION_MESSAGE_ID,
+        _SESSION_PRODUCT_RUN_ID,
     ):
         var.set("")
     # Reset async-delivery capability to the "never set" sentinel rather than a

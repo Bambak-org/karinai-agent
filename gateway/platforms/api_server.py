@@ -3678,6 +3678,7 @@ class APIServerAdapter(BasePlatformAdapter):
         chat_id: str = "",
         session_key: str = "",
         session_id: str = "",
+        product_run_id: str = "",
     ) -> list:
         """Bind session contextvars for an API-server agent run.
 
@@ -3701,6 +3702,7 @@ class APIServerAdapter(BasePlatformAdapter):
             chat_id=chat_id,
             session_key=session_key,
             session_id=session_id,
+            product_run_id=product_run_id,
             async_delivery=False,
         )
 
@@ -3855,6 +3857,16 @@ class APIServerAdapter(BasePlatformAdapter):
         gateway_session_key, key_err = self._parse_session_key_header(request)
         if key_err is not None:
             return key_err
+
+        # KarinAI managed-run PRODUCT run id. The backend sends its OWN run id
+        # (the value its post-run outputs/<id>/ sweep keys on) here; it is NOT
+        # the agent-internal run_<uuid> minted below. Read it now at request
+        # scope — `request` does not exist inside the _run_sync thread closure —
+        # and capture it by value so register_artifact targets the correct
+        # outputs/<product_run_id>/ directory. Empty when absent (dev /
+        # non-managed callers); the tool degrades to outputs/ then. aiohttp
+        # headers are case-insensitive, so header casing is irrelevant.
+        product_run_id = request.headers.get("X-KarinAI-Run-Id", "").strip()
 
         # Enforce concurrency limit (shared across all agent-serving
         # endpoints; configurable via gateway.api_server.max_concurrent_runs).
@@ -4014,6 +4026,7 @@ class APIServerAdapter(BasePlatformAdapter):
                         approval_token = set_current_session_key(approval_session_key)
                         session_tokens = self._bind_api_server_session(
                             session_key=approval_session_key,
+                            product_run_id=product_run_id,
                         )
                         register_gateway_notify(approval_session_key, _approval_notify)
                         r = agent.run_conversation(

@@ -188,8 +188,8 @@ TOOLSETS = {
     
 
     "file": {
-        "description": "File manipulation tools: read, write, patch (with fuzzy matching), and search (content + files)",
-        "tools": ["read_file", "write_file", "patch", "search_files"],
+        "description": "File manipulation tools: read, write, patch (with fuzzy matching), search (content + files), and register_artifact (stage a file for delivery to the user)",
+        "tools": ["read_file", "write_file", "patch", "search_files", "register_artifact"],
         "includes": []
     },
     
