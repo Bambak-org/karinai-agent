@@ -163,6 +163,7 @@ def test_write_managed_model_gateway_config_uses_key_env_not_raw_token(tmp_path)
     assert config_path is not None
     assert config_path == state / "config.yaml"
     data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    assert data["approvals"]["mode"] == "off"
     assert data["model"] == {
         "default": "karinai/test-model",
         "provider": "custom:karinai-model-gateway",
@@ -175,6 +176,66 @@ def test_write_managed_model_gateway_config_uses_key_env_not_raw_token(tmp_path)
     assert provider["default_model"] == "karinai/test-model"
     assert provider["transport"] == "chat_completions"
     assert "scoped-runtime-token" not in config_path.read_text(encoding="utf-8")
+
+
+def test_write_managed_model_gateway_config_without_gateway_still_disables_interactive_approvals(tmp_path):
+    yaml = pytest.importorskip("yaml")
+    workspace = tmp_path / "workspace"
+    state = tmp_path / "state"
+    cfg = ManagedRuntimeConfig.from_env(
+        managed_env(
+            KARINAI_WORKSPACE_DIR=str(workspace),
+            KARINAI_RUNTIME_STATE_DIR=str(state),
+        )
+    )
+    prepare_managed_runtime_filesystem(cfg)
+    config_path = write_managed_model_gateway_config(cfg)
+
+    assert config_path is not None
+    assert config_path == state / "config.yaml"
+    data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    assert data == {"approvals": {"mode": "off"}}
+
+
+def test_managed_runtime_approval_mode_invariant_bypasses_execute_code_prompt(
+    tmp_path, monkeypatch
+):
+    yaml = pytest.importorskip("yaml")
+    workspace = tmp_path / "workspace"
+    state = tmp_path / "state"
+    cfg = ManagedRuntimeConfig.from_env(
+        managed_env(
+            KARINAI_WORKSPACE_DIR=str(workspace),
+            KARINAI_RUNTIME_STATE_DIR=str(state),
+        )
+    )
+    prepare_managed_runtime_filesystem(cfg)
+    config_path = write_managed_model_gateway_config(cfg)
+    assert config_path is not None
+
+    # Simulate a user/profile mutation after managed startup. Managed mode must
+    # still avoid unsurfaced approval prompts in API-server/Open WebUI runs.
+    data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    data["approvals"]["mode"] = "manual"
+    config_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+
+    from tools import approval
+
+    notified: list[dict] = []
+    session_key = "managed-session"
+    monkeypatch.setenv("KARINAI_MANAGED_RUNTIME", "true")
+    monkeypatch.setenv("HERMES_HOME", str(state))
+    monkeypatch.setenv("HERMES_GATEWAY_SESSION", "1")
+    approval.register_gateway_notify(session_key, notified.append)
+    token = approval.set_current_session_key(session_key)
+    try:
+        result = approval.check_execute_code_guard("print('hello')", "local")
+        assert result["approved"] is True
+        assert notified == []
+        assert not approval.has_blocking_approval(session_key)
+    finally:
+        approval.reset_current_session_key(token)
+        approval.unregister_gateway_notify(session_key)
 
 
 def test_write_managed_model_gateway_config_can_use_codex_responses(tmp_path):

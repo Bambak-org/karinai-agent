@@ -83,47 +83,58 @@ def write_managed_model_gateway_config(
     *,
     env: Mapping[str, str] | None = None,
 ) -> Path | None:
-    """Render managed model-provider config without persisting raw provider keys.
+    """Render managed runtime config without persisting raw provider keys.
 
     Managed containers see exactly one model provider: the KarinAI model gateway.
     The gateway itself lives outside the user container and owns real provider
     credentials. The container stores only a key_env reference to the scoped
     runtime token that runtime-manager injected for this warm container.
+
+    Managed API-server runs have no interactive user approval channel today.
+    Leaving upstream approvals.mode at its default manual value can therefore
+    wedge a run on an approval request until the backend request times out. The
+    product safety boundary for this mode is the KarinAI sandbox/tool policy and
+    backend prompt filter, so managed runtime config explicitly disables
+    interactive approvals while preserving upstream hardline blocks.
     """
 
     cfg = config or load_managed_runtime_config(env)
-    if not cfg.model_gateway_url:
-        return None
 
     import yaml
 
-    base_url = _normalize_model_gateway_base_url(cfg.model_gateway_url)
     config_path = cfg.runtime_state_path / "config.yaml"
     data = _load_yaml_mapping(config_path)
     original_data = dict(data)
 
-    model_cfg = data.get("model") if isinstance(data.get("model"), dict) else {}
-    model_cfg = dict(model_cfg or {})
-    model_cfg.update(
-        {
-            "default": cfg.model_gateway_model,
-            "provider": "custom:karinai-model-gateway",
-            "base_url": base_url,
-            "api_mode": cfg.model_gateway_api_mode,
-        }
-    )
-    data["model"] = model_cfg
+    approvals_cfg = data.get("approvals") if isinstance(data.get("approvals"), dict) else {}
+    approvals_cfg = dict(approvals_cfg or {})
+    approvals_cfg["mode"] = "off"
+    data["approvals"] = approvals_cfg
 
-    providers = data.get("providers") if isinstance(data.get("providers"), dict) else {}
-    providers = dict(providers or {})
-    providers["karinai-model-gateway"] = {
-        "name": "KarinAI model gateway",
-        "api": base_url,
-        "key_env": "KARINAI_RUNTIME_TOKEN",
-        "default_model": cfg.model_gateway_model,
-        "transport": cfg.model_gateway_api_mode,
-    }
-    data["providers"] = providers
+    if cfg.model_gateway_url:
+        base_url = _normalize_model_gateway_base_url(cfg.model_gateway_url)
+        model_cfg = data.get("model") if isinstance(data.get("model"), dict) else {}
+        model_cfg = dict(model_cfg or {})
+        model_cfg.update(
+            {
+                "default": cfg.model_gateway_model,
+                "provider": "custom:karinai-model-gateway",
+                "base_url": base_url,
+                "api_mode": cfg.model_gateway_api_mode,
+            }
+        )
+        data["model"] = model_cfg
+
+        providers = data.get("providers") if isinstance(data.get("providers"), dict) else {}
+        providers = dict(providers or {})
+        providers["karinai-model-gateway"] = {
+            "name": "KarinAI model gateway",
+            "api": base_url,
+            "key_env": "KARINAI_RUNTIME_TOKEN",
+            "default_model": cfg.model_gateway_model,
+            "transport": cfg.model_gateway_api_mode,
+        }
+        data["providers"] = providers
 
     if config_path.exists() and data == original_data:
         return config_path

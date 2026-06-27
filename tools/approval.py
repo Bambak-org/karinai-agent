@@ -1062,6 +1062,14 @@ def _get_approval_config() -> dict:
 
 def _get_approval_mode() -> str:
     """Read the approval mode from config. Returns 'manual', 'smart', or 'off'."""
+    # KarinAI managed API-server containers do not have an interactive approval
+    # surface in the product UI. If a user or persisted profile mutates
+    # config.yaml back to manual, the next tool approval would wedge the run
+    # until backend timeout. Treat managed mode as an invariant: the safety
+    # boundary is the sandbox/tool policy/backend filter, while hardline command
+    # blocks still run before approval-mode checks.
+    if is_truthy_value(os.getenv("KARINAI_MANAGED_RUNTIME", "")):
+        return "off"
     mode = _get_approval_config().get("mode", "manual")
     return _normalize_approval_mode(mode)
 
