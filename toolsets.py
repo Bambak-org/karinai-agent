@@ -192,6 +192,12 @@ TOOLSETS = {
         "tools": ["read_file", "write_file", "patch", "search_files"],
         "includes": []
     },
+
+    "artifact": {
+        "description": "Deliver a workspace file to the user: stage it into the run's output directory for the backend to publish as a download.",
+        "tools": ["register_artifact"],
+        "includes": []
+    },
     
     "tts": {
         "description": "Text-to-speech: convert text to audio with Edge TTS (free), ElevenLabs, OpenAI, or xAI",
